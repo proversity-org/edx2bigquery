@@ -29,7 +29,7 @@ setup(
         },
     install_requires=['path.py',
                       'argparse',
-		      'pygeoip',
+                'pygeoip',
                       'pytz',
                       'python-dateutil',
                       'geoip2',
@@ -39,6 +39,7 @@ setup(
                       'Jinja2',
                       'google-api-python-client',
                       'edxcut',
+                      'boto3'
                       ],
     dependency_links = [
         ],
