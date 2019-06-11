@@ -32,13 +32,13 @@ def is_valid_course_id(course_id):
 
 def get_course_ids(args, do_check=True):
     courses = get_course_ids_no_check(args)
-    if do_check:
-        if not all(map(is_valid_course_id, courses)):
-            print "Error!  Invalid course_id:"
-            for cid in courses:
-                if not is_valid_course_id(cid):
-                    print "  BAD --> %s " % cid
-            sys.exit(-1)
+    # if do_check:
+    #     if not all(map(is_valid_course_id, courses)):
+    #         print "Error!  Invalid course_id:"
+    #         for cid in courses:
+    #             if not is_valid_course_id(cid):
+    #                 print "  BAD --> %s " % cid
+    #         sys.exit(-1)
     return courses
 
 def get_course_ids_from_course_list(args):
