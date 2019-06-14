@@ -6,26 +6,21 @@
 #
 # common bigquery utility functions
 
-import sys
-import time
-import json
 import datetime
+import getpass
+import json
+import time
+import sys
 
-try:
-    import getpass
-except:
-    pass
-
-try:
-    from edx2bigquery_config import PROJECT_ID as DEFAULT_PROJECT_ID
-except:
-    from local_config import PROJECT_ID as DEFAULT_PROJECT_ID
-
-import auth
 from collections import OrderedDict
 
+from google.cloud import bigquery
+
+import auth
+import edx2bigquery_config
+
+
 service = auth.build_bq_client(timeout=480)
-#service = auth.build_bq_client() 
 
 projects = service.projects()
 datasets = service.datasets()
@@ -34,6 +29,8 @@ tabledata = service.tabledata()
 jobs = service.jobs()
 
 PROJECT_NAMES = {}				# used to cache project names, key=project_id
+DEFAULT_PROJECT_ID = getattr(edx2bigquery_config, 'PROJECT_ID', '')
+
 
 def default_logger(msg):
     print msg
@@ -774,6 +771,89 @@ def extract_table_to_gs(dataset_id, table_id, gsfn, format=None, do_gzip=False, 
         print "[bqutil] ERROR!  ", status['errors']
         print "job = ", json.dumps(job, indent=4)
         raise Exception('BQ Error creating table')
+
+
+def upload_local_data_to_big_query(dataset_id, table_id, schema, course_id):
+    """
+    Uploads local tracking logs to the provided dataset and table id from
+    the provided course_id log file.
+
+    Args:
+        dataset_id: Valid Google Big Query dataset ID.
+        table_id: Valid Google Big Query table ID of the provided dataset_id.
+        schema: Schema type to use upon the data.
+        project_id: Google Cloud Platform project ID.
+        course_id: Valid course id of the current proccessed course.
+    Returns:
+
+    Raises:
+
+    """
+    bigquery_client = bigquery.Client.from_service_account_json(
+        getattr(edx2bigquery_config, 'auth_key_file', ''),
+    )
+    filename = '{}/{}/tracklog.json.gz'.format(
+        getattr(edx2bigquery_config, 'TRACKING_LOGS_DIRECTORY', ''),
+        course_id,
+    )
+    dataset_ref = bigquery_client.dataset(dataset_id)
+    table_ref = dataset_ref.table(table_id)
+    job_config = get_job_config(schema)
+
+    with open(filename, "rb") as source_file:
+        job = bigquery_client.load_table_from_file(
+            source_file,
+            table_ref,
+            job_config=job_config,
+        )
+
+    job_result = job.result()
+
+    # if job_result.state == 'DONE':
+
+
+def get_job_config(schema):
+    """
+    Returns the BigQuery configuration options for load jobs.
+
+    Reference: https://googleapis.github.io/google-cloud-python/latest/bigquery/generated/google.cloud.bigquery.job.LoadJobConfig.html
+
+    Args:
+        schema: Schema type to use upon the data.
+    Returns:
+        google.cloud.bigquery.job.LoadJobConfig Object.
+    """
+    job_config = bigquery.LoadJobConfig()
+
+    job_config.schema = list(get_configuration_schema(schema))
+    job_config.write_disposition = 'WRITE_TRUNCATE'
+    job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
+    job_config.autodetect = True
+
+    return job_config
+
+
+def get_configuration_schema(schema):
+    """
+    Yields a new google.cloud.biquery.schema.SchemaField Object.
+
+    Uses bigquery.schema.SchemaField.from_api_repr class method,
+    to convert from api data schema into SchemaField object.
+
+    Args:
+        schema: Schema type to use upon the data.
+    Returns:
+        google.cloud.biquery.schema.SchemaField Object.
+    Raises:
+        Exception: When schema argument is empty or None.
+    """
+    if not schema:
+        raise Exception('Data schema was not provided. Unable to upload data to Google BigQuery.')
+
+    for api_schema_field in schema:
+        schema_field = bigquery.schema.SchemaField.from_api_repr(api_schema_field)
+        yield schema_field
+
 
 #-----------------------------------------------------------------------------
 # unit tests, using py.test
