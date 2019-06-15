@@ -49,8 +49,12 @@ def course_id2dataset(course_id, dtype=None, use_dataset_latest=False):
     BigQuery disallows certain characters in table names, e.g. "-" and "."
     Use this function to keep our mapping centralized and consistent.
     '''
+    if course_id.startswith('course-v1:'):
+        course_id = course_id.split('course-v1:',1)[1]
+
     dataset = course_id.replace('/','__').replace('.','_')	# dataset_id is same as course_dir but with "." -> "_"
-    dataset = dataset.replace('-','_')				# also "." -> "_"
+    dataset = dataset.replace('-','_') # also "." -> "_"
+    dataset = dataset.replace('+', '_') # also "+" -> "_"
     if dtype=='logs':
         dataset += "_logs"
     elif dtype=='pcday':
@@ -65,7 +69,7 @@ def delete_dataset(dataset, project_id=DEFAULT_PROJECT_ID, delete_contents=False
 def create_dataset_if_nonexistent(dataset, project_id=DEFAULT_PROJECT_ID):
 
   if dataset not in get_list_of_datasets():
-
+      import ipdb; ipdb.set_trace()
       dataset_ref = {'datasetId': dataset,
                      'projectId': project_id}
       dataset = {'datasetReference': dataset_ref}
