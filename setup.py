@@ -43,6 +43,7 @@ setup(
         'boto3',
         'oauth2client',
         'google-cloud-bigquery',
+        'edx-opaque-keys',
     ],
     dependency_links = [],
     package_dir={'edx2bigquery': 'edx2bigquery'},
