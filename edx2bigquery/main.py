@@ -3,20 +3,20 @@
 # edx2bigquery main entry point
 #
 
-import os
-import sys
-
 import argparse
 import copy
-import json
-import traceback
 import datetime
+import json
 import multiprocessing as mp
-
-from path import Path as path
-
+import os
+import sys
+import traceback
 from argparse import RawTextHelpFormatter
 from collections import OrderedDict
+
+from opaque_keys import InvalidKeyError
+from opaque_keys.edx.keys import CourseKey, UsageKey
+from path import Path as path
 
 CURDIR = path(os.path.abspath(os.curdir))
 if os.path.exists(CURDIR / 'edx2bigquery_config.py'):
@@ -26,19 +26,33 @@ else:
     print "WARNING: edx2bigquery needs a configuration file, ./edx2bigquery_config.py, to operate properly"
 
 def is_valid_course_id(course_id):
-    if not course_id.count('/')==2:
+    """
+    Checks if the provided course_id is a valid course id instance.
+
+    Args:
+        course_id: String containing a course_id instance.
+    Returns:
+        True: If the course_id is valid.
+        False: If the course_id id not valid.
+    """
+    try:
+        # Just we need to check if course_id is a valid course id instance.
+        # Otherwise, it will raise an InvalidKeyError if the course_id is not a valid one.
+        CourseKey.from_string(course_id)
+    except InvalidKeyError:
         return False
+
     return True
 
 def get_course_ids(args, do_check=True):
     courses = get_course_ids_no_check(args)
-    # if do_check:
-    #     if not all(map(is_valid_course_id, courses)):
-    #         print "Error!  Invalid course_id:"
-    #         for cid in courses:
-    #             if not is_valid_course_id(cid):
-    #                 print "  BAD --> %s " % cid
-    #         sys.exit(-1)
+    if do_check:
+        if not all(map(is_valid_course_id, courses)):
+            print "Error!  Invalid course_id:"
+            for cid in courses:
+                if not is_valid_course_id(cid):
+                    print "  BAD --> %s " % cid
+            sys.exit(-1)
     return courses
 
 def get_course_ids_from_course_list(args):
@@ -483,11 +497,13 @@ def daily_logs(param, args, steps, course_id=None, verbose=True, wait=False):
                 except Exception as err:
                     print "  Error!  Cannot parse timezone '%s' err=%s" % (timezone_string, err)
 
-            split_and_rephrase.do_file(the_tlfn,
-                                       logs_dir=args.logs_dir or edx2bigquery_config.TRACKING_LOGS_DIRECTORY,
-                                       dynamic_dates=args.dynamic_dates,
-                                       timezone=timezone,
-                                       logfn_keepdir=args.logfn_keepdir,
+            split_and_rephrase.do_file(
+                the_tlfn,
+                use_local_files=param.use_local_files,
+                logs_dir=args.logs_dir or edx2bigquery_config.TRACKING_LOGS_DIRECTORY,
+                dynamic_dates=args.dynamic_dates,
+                timezone=timezone,
+                logfn_keepdir=args.logfn_keepdir,
             )
 
     if 'logs2gs' in steps:
@@ -504,10 +520,13 @@ def daily_logs(param, args, steps, course_id=None, verbose=True, wait=False):
     if 'logs2bq' in steps:
         import load_daily_tracking_logs
         try:
-            load_daily_tracking_logs.load_all_daily_logs_for_course(course_id, edx2bigquery_config.GS_BUCKET,
-                                                                    verbose=verbose, wait=wait,
-                                                                    check_dates= (not wait),
-                                                                    )
+            load_daily_tracking_logs.load_all_daily_logs_for_course(
+                course_id,
+                use_local_files=param.use_local_files,
+                gsbucket=edx2bigquery_config.GS_BUCKET,
+                verbose=verbose, wait=wait,
+                check_dates= (not wait),
+            )
         except Exception as err:
             print err
             raise
@@ -1742,6 +1761,7 @@ check_for_duplicates        : check list of courses for duplicates
     parser.add_argument("--subsection", help="Add grades_persistent_subsection instead of grades_persistent",
                         action="store_true")
     parser.add_argument('courses', nargs = '*', help = 'courses or course directories, depending on the command')
+    parser.add_argument('--use-local-tracking-files', help = 'Use the local tracking log files to upload into BigQuery instead of Google Cloud Storage files.', action="store_true")
 
     args = parser.parse_args()
     if args.verbose:
@@ -1771,6 +1791,7 @@ check_for_duplicates        : check list of courses for duplicates
     param.submit_condor = args.submit_condor
     param.skip_log_loading = args.skip_log_loading
     param.subsection = args.subsection
+    param.use_local_files = args.use_local_tracking_files
 
     # default end date for person_course
     try:
