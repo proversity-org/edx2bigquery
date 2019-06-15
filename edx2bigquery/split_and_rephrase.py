@@ -8,14 +8,18 @@
 # runs log entries through rephrasing also (option to turn that off).
 #
 
-import os, sys
 import datetime
-import string
-import re
-import json
 import gzip
+import json
+import os
+import re
+import string
+import sys
+
 import dateutil.parser
 import pytz
+
+import edx2bigquery_config
 from rephrase_tracking_logs import do_rephrase
 
 ofpset = {}
@@ -60,7 +64,7 @@ def guess_course_id(data, org="MITx"):
 #-----------------------------------------------------------------------------
 
 
-def do_split(line, linecnt=0, run_rephrase=True, date=None, do_zip=False, org='MITx', logs_dir=LOGS_DIR,
+def do_split(line, use_local_files, linecnt=0, run_rephrase=True, date=None, do_zip=False, org='MITx', logs_dir=LOGS_DIR,
              dynamic_dates=False, timezone=None):
     '''
     if dynamic_dates=True, then use the date on each tracking log line for the date string in the filename.
@@ -103,6 +107,8 @@ def do_split(line, linecnt=0, run_rephrase=True, date=None, do_zip=False, org='M
     else:
         cid = data['course_id']
 
+    original_course_id = cid
+
     # un-mangle opaque keys version of course_id, e.g. course-v1:MITx+6.00.2x_3+1T2015
     if cid.startswith('course-v1:'):
         cid = cid.split('course-v1:',1)[1].replace('+','/')
@@ -117,8 +123,8 @@ def do_split(line, linecnt=0, run_rephrase=True, date=None, do_zip=False, org='M
     if run_rephrase:
         do_rephrase(data)
 
-    ofn = cid.replace('/','__')     # determine output filename
-    
+    # determine output filename
+    ofn = cid.replace('/','__') if not use_local_files else original_course_id
     mode = 'w'
     if dynamic_dates:
         mode = 'a'	# note - append to file!
@@ -141,7 +147,7 @@ def do_split(line, linecnt=0, run_rephrase=True, date=None, do_zip=False, org='M
 
 #-----------------------------------------------------------------------------
 
-def do_file(fn, logs_dir=LOGS_DIR, dynamic_dates=False, timezone=None, logfn_keepdir=False):
+def do_file(fn, use_local_files, logs_dir=LOGS_DIR, dynamic_dates=False, timezone=None, logfn_keepdir=False):
     if fn.endswith('.gz'):
         fp = gzip.GzipFile(fn)
         if logfn_keepdir:
@@ -166,17 +172,16 @@ def do_file(fn, logs_dir=LOGS_DIR, dynamic_dates=False, timezone=None, logfn_kee
     print "Processing %s -> %s (%s)" % (fn, ofn, datetime.datetime.now())
     sys.stdout.flush()
 
-    m = re.search('(\d\d\d\d-\d\d-\d\d)', fn)
-    if m:
-        the_date = m.group(1)
-    else:
-        the_date = None
+    date_pattern = getattr(edx2bigquery_config, 'TRACKING_LOG_REGEX_DATE_PATTERN', '')
+    date_match = re.search(date_pattern, fn)
+
+    the_date = date_match.group(1) if date_match else None
 
     cnt = 0
     for line in fp:
         cnt += 1
         try:
-            newline = do_split(line, linecnt=cnt, run_rephrase=True, date=the_date, do_zip=True, logs_dir=logs_dir,
+            newline = do_split(line, use_local_files, linecnt=cnt, run_rephrase=True, date=the_date, do_zip=True, logs_dir=logs_dir,
                                dynamic_dates=dynamic_dates, timezone=timezone)
         except Exception as err:
             print "[split_and_rephrase] ===> OOPS, failed err=%s in parsing line %s" % (str(err), line)
