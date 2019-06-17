@@ -15,19 +15,20 @@
 #
 # Assumes daily tracking log files are already uploaded to google storage.
 
-import os
-import sys
-import auth
-import json
-import time
-import glob
-import re
 import datetime
-import bqutil
-import gsutil
+import glob
+import json
+import os
+import re
+import sys
+import time
+
 import dateutil.parser
 
+import auth
+import bqutil
 import edx2bigquery_config
+import gsutil
 import local_util
 
 #-----------------------------------------------------------------------------
