@@ -520,13 +520,21 @@ def daily_logs(param, args, steps, course_id=None, verbose=True, wait=False):
     if 'logs2bq' in steps:
         import load_daily_tracking_logs
         try:
-            load_daily_tracking_logs.load_all_daily_logs_for_course(
-                course_id,
-                use_local_files=param.use_local_files,
-                gsbucket=edx2bigquery_config.GS_BUCKET,
-                verbose=verbose, wait=wait,
-                check_dates= (not wait),
-            )
+            if param.use_local_files:
+                load_daily_tracking_logs.load_local_logs_to_biqquery(
+                    course_id,
+                    start_date=param.start_date,
+                    end_date=param.end_date,
+                    verbose=verbose,
+                )
+            else:
+                load_daily_tracking_logs.load_all_daily_logs_for_course(
+                    course_id,
+                    use_local_files=param.use_local_files,
+                    gsbucket=edx2bigquery_config.GS_BUCKET,
+                    verbose=verbose, wait=wait,
+                    check_dates= (not wait),
+                )
         except Exception as err:
             print err
             raise
