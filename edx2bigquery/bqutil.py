@@ -779,7 +779,7 @@ def extract_table_to_gs(dataset_id, table_id, gsfn, format=None, do_gzip=False, 
 def upload_local_data_to_big_query(dataset_id, table_id, schema, course_id, file_name):
     """
     Uploads local tracking logs to the provided dataset and table id from
-    the provided course_id log file.
+    the provided course_id tracking log file.
 
     Args:
         dataset_id: Valid Google Big Query dataset ID.
@@ -788,10 +788,6 @@ def upload_local_data_to_big_query(dataset_id, table_id, schema, course_id, file
         project_id: Google Cloud Platform project ID.
         course_id: Valid course id of the current proccessed course.
         file_name: Fil name of the archive that has the tracking log data.
-    Returns:
-
-    Raises:
-
     """
     bigquery_client = bigquery.Client.from_service_account_json(
         getattr(edx2bigquery_config, 'auth_key_file', ''),
@@ -809,7 +805,14 @@ def upload_local_data_to_big_query(dataset_id, table_id, schema, course_id, file
 
     job_result = job.result()
 
-    # if job_result.state == 'DONE':
+    if job_result.state != 'DONE':
+        print(
+            'Job for update the file with name: {} into the table: {} failed due to: {}'.format(
+                file_name,
+                table_ref,
+                ' '.join(job_result.errors)
+            )
+        )
 
 
 def get_job_config(schema):
