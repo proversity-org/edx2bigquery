@@ -69,7 +69,6 @@ def delete_dataset(dataset, project_id=DEFAULT_PROJECT_ID, delete_contents=False
 def create_dataset_if_nonexistent(dataset, project_id=DEFAULT_PROJECT_ID):
 
   if dataset not in get_list_of_datasets():
-      import ipdb; ipdb.set_trace()
       dataset_ref = {'datasetId': dataset,
                      'projectId': project_id}
       dataset = {'datasetReference': dataset_ref}
@@ -777,7 +776,7 @@ def extract_table_to_gs(dataset_id, table_id, gsfn, format=None, do_gzip=False, 
         raise Exception('BQ Error creating table')
 
 
-def upload_local_data_to_big_query(dataset_id, table_id, schema, course_id):
+def upload_local_data_to_big_query(dataset_id, table_id, schema, course_id, file_name):
     """
     Uploads local tracking logs to the provided dataset and table id from
     the provided course_id log file.
@@ -788,6 +787,7 @@ def upload_local_data_to_big_query(dataset_id, table_id, schema, course_id):
         schema: Schema type to use upon the data.
         project_id: Google Cloud Platform project ID.
         course_id: Valid course id of the current proccessed course.
+        file_name: Fil name of the archive that has the tracking log data.
     Returns:
 
     Raises:
@@ -796,15 +796,11 @@ def upload_local_data_to_big_query(dataset_id, table_id, schema, course_id):
     bigquery_client = bigquery.Client.from_service_account_json(
         getattr(edx2bigquery_config, 'auth_key_file', ''),
     )
-    filename = '{}/{}/tracklog.json.gz'.format(
-        getattr(edx2bigquery_config, 'TRACKING_LOGS_DIRECTORY', ''),
-        course_id,
-    )
     dataset_ref = bigquery_client.dataset(dataset_id)
     table_ref = dataset_ref.table(table_id)
     job_config = get_job_config(schema)
 
-    with open(filename, "rb") as source_file:
+    with open(file_name, "rb") as source_file:
         job = bigquery_client.load_table_from_file(
             source_file,
             table_ref,
