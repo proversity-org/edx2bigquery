@@ -33,12 +33,17 @@ def download_object_and_save(object_key):
     """
     bucket_name = getattr(edx2bigquery_config, 'AWS_BUCKET_NAME', '')
     local_file_name = object_key.split('/')[-1]
+    logs_dir = getattr(edx2bigquery_config, 'TRACKING_LOGS_DIRECTORY', '')
     local_path_name = '{}/{}'.format(
-        getattr(edx2bigquery_config, 'TRACKING_LOGS_DIRECTORY', ''),
+        logs_dir,
         local_file_name,
     )
 
+    if not os.path.exists(logs_dir):
+        os.mkdir(logs_dir)
+
     s3_client = get_simple_storage_service_client()
+    print('Downloading {} into {}'.format(object_key, local_path_name))
     s3_client.download_file(bucket_name, object_key, local_path_name)
 
 
