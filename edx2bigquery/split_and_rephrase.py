@@ -163,11 +163,11 @@ def do_file(fn, use_local_files, logs_dir=LOGS_DIR, dynamic_dates=False, timezon
         ofn = string.rsplit(os.path.basename(fn), '.', 1)[0]
 
     # if file has been done, then there will be a file denoting this in the META subdir
-    ofn = '%s/META/%s' % (logs_dir, ofn)
-    if os.path.exists(ofn):
-        print "Already done %s -> %s (skipping)" % (fn, ofn)
-        sys.stdout.flush()
-        return
+    # ofn = '%s/META/%s' % (logs_dir, ofn)
+    # if os.path.exists(ofn):
+    #     print "Already done %s -> %s (skipping)" % (fn, ofn)
+    #     sys.stdout.flush()
+    #     return
 
     print "Processing %s -> %s (%s)" % (fn, ofn, datetime.datetime.now())
     sys.stdout.flush()
