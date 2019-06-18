@@ -472,6 +472,8 @@ def daily_logs(param, args, steps, course_id=None, verbose=True, wait=False):
             daily_logs(param, args, steps, course_id)
         return
 
+    logs_dir = args.logs_dir or getattr(edx2bigquery_config, 'TRACKING_LOGS_DIRECTORY', '')
+
     if 'split' in steps:
         import split_and_rephrase
         import pytz
@@ -480,12 +482,23 @@ def daily_logs(param, args, steps, course_id=None, verbose=True, wait=False):
             import glob
             TODO = glob.glob(tlfn)
             TODO.sort()
+        elif param.split_multiple_files:
+            TODO = list(
+                map(
+                    lambda file: '{}/{}'.format(
+                        logs_dir,
+                        file,
+                    ),
+                    os.listdir(logs_dir),
+                )
+            )
         else:
             TODO = [tlfn]
         for the_tlfn in TODO:
             print "--> Splitting tracking logs in %s" % the_tlfn
             timezone_string = None
             timezone = None
+
             try:
                 timezone_string = edx2bigquery_config.TIMEZONE
             except Exception as err:
@@ -500,7 +513,7 @@ def daily_logs(param, args, steps, course_id=None, verbose=True, wait=False):
             split_and_rephrase.do_file(
                 the_tlfn,
                 use_local_files=param.use_local_files,
-                logs_dir=args.logs_dir or edx2bigquery_config.TRACKING_LOGS_DIRECTORY,
+                logs_dir=logs_dir,
                 dynamic_dates=args.dynamic_dates,
                 timezone=timezone,
                 logfn_keepdir=args.logfn_keepdir,
@@ -1769,7 +1782,8 @@ check_for_duplicates        : check list of courses for duplicates
     parser.add_argument("--subsection", help="Add grades_persistent_subsection instead of grades_persistent",
                         action="store_true")
     parser.add_argument('courses', nargs = '*', help = 'courses or course directories, depending on the command')
-    parser.add_argument('--use-local-tracking-files', help = 'Use the local tracking log files to upload into BigQuery instead of Google Cloud Storage files.', action="store_true")
+    parser.add_argument('--use-local-tracking-files', help='Use the local tracking log files to upload into BigQuery instead of Google Cloud Storage files.', action="store_true")
+    parser.add_argument('--split-multiple-files', help='Split multiples files for the same date.', action="store_true")
 
     args = parser.parse_args()
     if args.verbose:
@@ -1800,6 +1814,7 @@ check_for_duplicates        : check list of courses for duplicates
     param.skip_log_loading = args.skip_log_loading
     param.subsection = args.subsection
     param.use_local_files = args.use_local_tracking_files
+    param.split_multiple_files = args.split_multiple_files
 
     # default end date for person_course
     try:
