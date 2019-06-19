@@ -76,20 +76,32 @@ def get_bucket_object_list(bucket_name, start_date):
         getattr(edx2bigquery_config, 'TRACKING_LOG_FILE_NAME_PREFIX', ''),
         start_date,
     )
-    all_objects_macthed = aws_client.list_objects(
-        Bucket=bucket_name,
-        Prefix=prefix_name,
+
+    paginator = aws_client.get_paginator('list_objects')
+    result = paginator.paginate(
+        Bucket=bucket_name, Delimiter='/', Prefix=getattr(edx2bigquery_config, 'TRACKING_LOG_FILE_NAME_PREFIX', ''), PaginationConfig={'MaxItems': 1}
     )
 
-    if not all_objects_macthed.get('Contents'):
-        print('No object were found with the prefix: {}.'.format(prefix_name))
-        exit()
+    for page in result.search('CommonPrefixes'):
+        all_objects_macthed = aws_client.list_objects(
+            Bucket=bucket_name,
+            Prefix=page['Prefix'],
+        )
 
-    for bucket_object in all_objects_macthed['Contents']:
-        key_name = bucket_object.get('Key', None)
+        for bucket_object in all_objects_macthed['Contents']:
+            key_name = bucket_object.get('Key', None)
+            if '' in key_name:
+                print(key_name)
 
-        if key_name:
-            download_object_and_save(key_name)
+    # if not all_objects_macthed.get('Contents'):
+    #     print('No objects were found with the prefix: {}'.format(prefix_name))
+    #     exit()
+
+    # for bucket_object in all_objects_macthed['Contents']:
+    #     key_name = bucket_object.get('Key', None)
+
+    #     if key_name:
+    #         download_object_and_save(key_name)
 
 
 get_bucket_object_list(getattr(edx2bigquery_config, 'AWS_BUCKET_NAME', ''), '2019')

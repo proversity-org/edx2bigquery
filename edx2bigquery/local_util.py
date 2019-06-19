@@ -33,10 +33,11 @@ def get_tracking_log_file_list(course_id):
     )
 
     if not os.path.exists(abs_path_to_folder):
-        raise Exception('Folder with the name: {}, does not exists.'.format(abs_path_to_folder))
+        print('Folder with the name: {}, does not exists.'.format(abs_path_to_folder))
+        yield None
+    else:
+        file_list = os.listdir(abs_path_to_folder)
 
-    file_list = os.listdir(abs_path_to_folder)
-
-    for file in file_list:
-        abs_path = '{}/{}'.format(abs_path_to_folder, file)
-        yield abs_path
+        for file in file_list:
+            abs_path = '{}/{}'.format(abs_path_to_folder, file)
+            yield abs_path

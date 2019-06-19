@@ -135,6 +135,9 @@ def load_local_logs_to_biqquery(course_id, start_date, end_date, verbose):
     bqutil.create_dataset_if_nonexistent(dataset_name)
 
     for file_name in local_util.get_tracking_log_file_list(course_id):
+        if not file_name:
+            continue
+
         file_match = re.findall(date_pattern, file_name)
 
         if not file_match and verbose:
