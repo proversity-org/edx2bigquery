@@ -567,9 +567,9 @@ def daily_logs(param, args, steps, course_id=None, verbose=True, wait=False):
             else:
                 load_daily_tracking_logs.load_all_daily_logs_for_course(
                     course_id,
-                    use_local_files=param.use_local_files,
                     gsbucket=edx2bigquery_config.GS_BUCKET,
-                    verbose=verbose, wait=wait,
+                    verbose=verbose,
+                    wait=wait,
                     check_dates= (not wait),
                 )
         except Exception as err:
@@ -2199,7 +2199,7 @@ check_for_duplicates        : check list of courses for duplicates
         courses = get_course_ids(args)
         run_parallel_or_serial(logs2bq_single, param, courses, args, parallel=args.parallel)
 
-    elif (args.command=='logsfromS3'):
+    elif args.command == 'logsfromS3':
         get_logs_from_simple_storage_service(param, args)
 
     elif (args.command=='course_key_version'):
