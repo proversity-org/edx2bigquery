@@ -2,7 +2,6 @@
 #
 # edx2bigquery main entry point
 #
-
 import argparse
 import copy
 import datetime
@@ -17,6 +16,9 @@ from collections import OrderedDict
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey, UsageKey
 from path import Path as path
+
+from s3_backend import get_tracking_log_objects
+
 
 CURDIR = path(os.path.abspath(os.curdir))
 if os.path.exists(CURDIR / 'edx2bigquery_config.py'):
@@ -456,6 +458,28 @@ def logs2bq_single(param, course_id, args):
     '''
     return daily_logs(param, args, 'logs2bq', course_id)
 
+def get_logs_from_simple_storage_service(param, args):
+    """
+    Gets and downloads the tracking logs matched by start_date argument.
+
+    Args:
+        param: Commad Parameters object.
+        args: Command arguments.
+    Raises:
+        Any Exception raised by the process.
+    """
+    if not getattr(param, 'start_date', None):
+        print('--start-date must be specified in this format: YYYYMMDD.')
+        exit()
+
+    try:
+        get_tracking_log_objects(
+            bucket_name=getattr(edx2bigquery_config, 'AWS_BUCKET_NAME', None),
+            start_date=param.start_date,
+        )
+    except Exception as error:
+        print('Unable to obtain the tracking logs from S3 service.')
+        raise error
 
 def daily_logs(param, args, steps, course_id=None, verbose=True, wait=False):
     if steps=='daily_logs':
@@ -1520,6 +1544,9 @@ split <daily_log_file> ...  : split single-day tracking log files (should be nam
                               dashes or periods.  Uses --logs-dir option, or, failing that, TRACKING_LOGS_DIRECTORY in the
                               edx2bigquery_config file.  Employs DIR/META/* files to keep track of which log files have been
                               split and rephrased, such that this command's actions are idempotent.
+                              --use-local-tracking-files: Specified if the tracking logs will be upload to Google Big Query from local machine.
+                                                          Split each course tracking log folder in the current course ID format: course-v1:ORG+COURSE-NUMBER+COURSE-RUN
+                              --split-multiple-files: Specified if there are multiple tracking log .gz files to split them all.
 
 logs2gs <course_id> ...     : transfer compressed daily tracking log files for the specified course_id's to Google cloud storage.
                               Does NOT import the log data into BigQuery.
@@ -1548,6 +1575,16 @@ course_key_version <cid>    : print out what version of course key (standard, v1
                               the future, there may be a module_key, but that idea isn't currently used.  This particular command
                               scans some tracking log entries, and if the count of "block-v1" is high, it assigns "v1"
                               to the course; otherwise, it assigns "standard" as the course key version.
+
+logsfromS3                  : Search and download all the object matched by --start-date argument from Amazon S3.
+                              --start-date must be specified in this format: YYYYMMDD
+                              These setting smust be speceified in the edx2bigquery_config.py file:
+                              AWS_ACCESS_KEY_ID
+                              AWS_SECRET_ACCESS_KEY
+                              TRACKING_LOG_FILE_NAME_PREFIX: Prefix of the object name to perform the search over the tracking log folder.
+                                                             path/where-the-tracking-log-are-stored
+                              AWS_BUCKET_NAME
+                              TRACKING_LOG_FILE_NAME_PATTERN: Portion of the name of the tracking log file till its date string. e.g. tracking.log-
 
 --- COURSE CONTENT DATA RELATED COMMANDS
 
@@ -2161,6 +2198,9 @@ check_for_duplicates        : check list of courses for duplicates
         # daily_logs(param, args, args.command)
         courses = get_course_ids(args)
         run_parallel_or_serial(logs2bq_single, param, courses, args, parallel=args.parallel)
+
+    elif (args.command=='logsfromS3'):
+        get_logs_from_simple_storage_service(param, args)
 
     elif (args.command=='course_key_version'):
         course_key_version(param, args, args)
