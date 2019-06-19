@@ -61,16 +61,22 @@ def set_aws_environment_settings():
         os.environ['AWS_SECRET_ACCESS_KEY'] = getattr(edx2bigquery_config, 'AWS_SECRET_ACCESS_KEY', '')
 
 
-def get_bucket_object_list(bucket_name, start_date):
+def get_tracking_log_objects(bucket_name, start_date):
     """
     Finds and gets all the objects matched by the tracking log date string.
 
     It will search in each folder of the provided TRACKING_LOG_FILE_NAME_PREFIX value.
 
     Args:
-        bucket_name: Name of the bucket to the get the file object list.
-        start_date: String date to find the tracking log files.
+        bucket_name: Name of the bucket to the get the tracking objects.
+        start_date: String date to find the tracking log objects.
+    Raises:
+        Exception: If not bucket name was provided in the configuration file.
     """
+    if not bucket_name:
+        print('AWS_BUCKET_NAME must be specified in the configuration file.')
+        raise Exception('Not bucket name provided')
+
     aws_client = get_simple_storage_service_client()
 
     if not getattr(edx2bigquery_config, 'TRACKING_LOG_FILE_NAME_PREFIX', ''):
@@ -99,7 +105,3 @@ def get_bucket_object_list(bucket_name, start_date):
                 continue
 
             download_object_and_save(object_file.get('Key', None))
-
-
-
-get_bucket_object_list(getattr(edx2bigquery_config, 'AWS_BUCKET_NAME', ''), '20190618')
