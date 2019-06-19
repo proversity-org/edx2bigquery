@@ -2,21 +2,23 @@
 #
 # edx2bigquery main entry point
 #
-
-import os
-import sys
-
 import argparse
 import copy
-import json
-import traceback
 import datetime
+import json
 import multiprocessing as mp
-
-from path import Path as path
-
+import os
+import sys
+import traceback
 from argparse import RawTextHelpFormatter
 from collections import OrderedDict
+
+from opaque_keys import InvalidKeyError
+from opaque_keys.edx.keys import CourseKey, UsageKey
+from path import Path as path
+
+from s3_backend import get_tracking_log_objects
+
 
 CURDIR = path(os.path.abspath(os.curdir))
 if os.path.exists(CURDIR / 'edx2bigquery_config.py'):
@@ -26,8 +28,22 @@ else:
     print "WARNING: edx2bigquery needs a configuration file, ./edx2bigquery_config.py, to operate properly"
 
 def is_valid_course_id(course_id):
-    if not course_id.count('/')==2:
+    """
+    Checks if the provided course_id is a valid course id instance.
+
+    Args:
+        course_id: String containing a course_id instance.
+    Returns:
+        True: If the course_id is valid.
+        False: If the course_id id not valid.
+    """
+    try:
+        # Just we need to check if course_id is a valid course id instance.
+        # Otherwise, it will raise an InvalidKeyError if the course_id is not a valid one.
+        CourseKey.from_string(course_id)
+    except InvalidKeyError:
         return False
+
     return True
 
 def get_course_ids(args, do_check=True):
@@ -442,6 +458,28 @@ def logs2bq_single(param, course_id, args):
     '''
     return daily_logs(param, args, 'logs2bq', course_id)
 
+def get_logs_from_simple_storage_service(param, args):
+    """
+    Gets and downloads the tracking logs matched by start_date argument.
+
+    Args:
+        param: Commad Parameters object.
+        args: Command arguments.
+    Raises:
+        Any Exception raised by the process.
+    """
+    if not getattr(param, 'start_date', None):
+        print('--start-date must be specified in this format: YYYYMMDD.')
+        exit()
+
+    try:
+        get_tracking_log_objects(
+            bucket_name=getattr(edx2bigquery_config, 'AWS_BUCKET_NAME', None),
+            start_date=param.start_date,
+        )
+    except Exception as error:
+        print('Unable to obtain the tracking logs from S3 service.')
+        raise error
 
 def daily_logs(param, args, steps, course_id=None, verbose=True, wait=False):
     if steps=='daily_logs':
@@ -458,6 +496,8 @@ def daily_logs(param, args, steps, course_id=None, verbose=True, wait=False):
             daily_logs(param, args, steps, course_id)
         return
 
+    logs_dir = args.logs_dir or getattr(edx2bigquery_config, 'TRACKING_LOGS_DIRECTORY', '')
+
     if 'split' in steps:
         import split_and_rephrase
         import pytz
@@ -466,12 +506,23 @@ def daily_logs(param, args, steps, course_id=None, verbose=True, wait=False):
             import glob
             TODO = glob.glob(tlfn)
             TODO.sort()
+        elif param.split_multiple_files:
+            TODO = list(
+                map(
+                    lambda file: '{}/{}'.format(
+                        logs_dir,
+                        file,
+                    ),
+                    os.listdir(logs_dir),
+                )
+            )
         else:
             TODO = [tlfn]
         for the_tlfn in TODO:
             print "--> Splitting tracking logs in %s" % the_tlfn
             timezone_string = None
             timezone = None
+
             try:
                 timezone_string = edx2bigquery_config.TIMEZONE
             except Exception as err:
@@ -483,11 +534,13 @@ def daily_logs(param, args, steps, course_id=None, verbose=True, wait=False):
                 except Exception as err:
                     print "  Error!  Cannot parse timezone '%s' err=%s" % (timezone_string, err)
 
-            split_and_rephrase.do_file(the_tlfn,
-                                       logs_dir=args.logs_dir or edx2bigquery_config.TRACKING_LOGS_DIRECTORY,
-                                       dynamic_dates=args.dynamic_dates,
-                                       timezone=timezone,
-                                       logfn_keepdir=args.logfn_keepdir,
+            split_and_rephrase.do_file(
+                the_tlfn,
+                use_local_files=param.use_local_files,
+                logs_dir=logs_dir,
+                dynamic_dates=args.dynamic_dates,
+                timezone=timezone,
+                logfn_keepdir=args.logfn_keepdir,
             )
 
     if 'logs2gs' in steps:
@@ -504,10 +557,21 @@ def daily_logs(param, args, steps, course_id=None, verbose=True, wait=False):
     if 'logs2bq' in steps:
         import load_daily_tracking_logs
         try:
-            load_daily_tracking_logs.load_all_daily_logs_for_course(course_id, edx2bigquery_config.GS_BUCKET,
-                                                                    verbose=verbose, wait=wait,
-                                                                    check_dates= (not wait),
-                                                                    )
+            if param.use_local_files:
+                load_daily_tracking_logs.load_local_logs_to_biqquery(
+                    course_id,
+                    start_date=param.start_date,
+                    end_date=param.end_date,
+                    verbose=verbose,
+                )
+            else:
+                load_daily_tracking_logs.load_all_daily_logs_for_course(
+                    course_id,
+                    gsbucket=edx2bigquery_config.GS_BUCKET,
+                    verbose=verbose,
+                    wait=wait,
+                    check_dates= (not wait),
+                )
         except Exception as err:
             print err
             raise
@@ -1480,6 +1544,9 @@ split <daily_log_file> ...  : split single-day tracking log files (should be nam
                               dashes or periods.  Uses --logs-dir option, or, failing that, TRACKING_LOGS_DIRECTORY in the
                               edx2bigquery_config file.  Employs DIR/META/* files to keep track of which log files have been
                               split and rephrased, such that this command's actions are idempotent.
+                              --use-local-tracking-files: Specified if the tracking logs will be upload to Google Big Query from local machine.
+                                                          Split each course tracking log folder in the current course ID format: course-v1:ORG+COURSE-NUMBER+COURSE-RUN
+                              --split-multiple-files: Specified if there are multiple tracking log .gz files to split them all.
 
 logs2gs <course_id> ...     : transfer compressed daily tracking log files for the specified course_id's to Google cloud storage.
                               Does NOT import the log data into BigQuery.
@@ -1508,6 +1575,16 @@ course_key_version <cid>    : print out what version of course key (standard, v1
                               the future, there may be a module_key, but that idea isn't currently used.  This particular command
                               scans some tracking log entries, and if the count of "block-v1" is high, it assigns "v1"
                               to the course; otherwise, it assigns "standard" as the course key version.
+
+logsfromS3                  : Search and download all the object matched by --start-date argument from Amazon S3.
+                              --start-date must be specified in this format: YYYYMMDD
+                              These setting smust be speceified in the edx2bigquery_config.py file:
+                              AWS_ACCESS_KEY_ID
+                              AWS_SECRET_ACCESS_KEY
+                              TRACKING_LOG_FILE_NAME_PREFIX: Prefix of the object name to perform the search over the tracking log folder.
+                                                             path/where-the-tracking-log-are-stored
+                              AWS_BUCKET_NAME
+                              TRACKING_LOG_FILE_NAME_PATTERN: Portion of the name of the tracking log file till its date string. e.g. tracking.log-
 
 --- COURSE CONTENT DATA RELATED COMMANDS
 
@@ -1742,6 +1819,8 @@ check_for_duplicates        : check list of courses for duplicates
     parser.add_argument("--subsection", help="Add grades_persistent_subsection instead of grades_persistent",
                         action="store_true")
     parser.add_argument('courses', nargs = '*', help = 'courses or course directories, depending on the command')
+    parser.add_argument('--use-local-tracking-files', help='Use the local tracking log files to upload into BigQuery instead of Google Cloud Storage files.', action="store_true")
+    parser.add_argument('--split-multiple-files', help='Split multiples files for the same date.', action="store_true")
 
     args = parser.parse_args()
     if args.verbose:
@@ -1771,6 +1850,8 @@ check_for_duplicates        : check list of courses for duplicates
     param.submit_condor = args.submit_condor
     param.skip_log_loading = args.skip_log_loading
     param.subsection = args.subsection
+    param.use_local_files = args.use_local_tracking_files
+    param.split_multiple_files = args.split_multiple_files
 
     # default end date for person_course
     try:
@@ -2117,6 +2198,9 @@ check_for_duplicates        : check list of courses for duplicates
         # daily_logs(param, args, args.command)
         courses = get_course_ids(args)
         run_parallel_or_serial(logs2bq_single, param, courses, args, parallel=args.parallel)
+
+    elif args.command == 'logsfromS3':
+        get_logs_from_simple_storage_service(param, args)
 
     elif (args.command=='course_key_version'):
         course_key_version(param, args, args)
