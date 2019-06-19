@@ -38,6 +38,6 @@ def get_tracking_log_file_list(course_id):
     else:
         file_list = os.listdir(abs_path_to_folder)
 
-        for file in file_list:
-            abs_path = '{}/{}'.format(abs_path_to_folder, file)
+        for file_name in file_list:
+            abs_path = '{}/{}'.format(abs_path_to_folder, file_name)
             yield abs_path
