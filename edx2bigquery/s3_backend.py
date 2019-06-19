@@ -83,6 +83,11 @@ def get_tracking_log_objects(bucket_name, start_date):
         print('The TRACKING_LOG_FILE_NAME_PREFIX setting is required.')
         exit()
 
+    print('Searching tracking logs in the bucket: {} and the path: {}'.format(
+        bucket_name,
+        getattr(edx2bigquery_config, 'TRACKING_LOG_FILE_NAME_PREFIX', ''),
+    ))
+
     all_instance_folder = aws_client.list_objects(
         Bucket=bucket_name,
         Delimiter='/',
