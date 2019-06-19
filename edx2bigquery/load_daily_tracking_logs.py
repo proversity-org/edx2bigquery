@@ -215,11 +215,10 @@ def get_tracking_log_schema():
         Dict containing the tracking log schema.
     """
     my_path = os.path.dirname(os.path.realpath(__file__))
-    schema = json.loads(
+
+    return json.loads(
         open('{}/schemas/schema_tracking_log.json'.format(my_path)).read()
     )['tracking_log']
-
-    return schema
 
 
 def logging(message):

@@ -30,6 +30,7 @@ jobs = service.jobs()
 
 PROJECT_NAMES = {}				# used to cache project names, key=project_id
 DEFAULT_PROJECT_ID = getattr(edx2bigquery_config, 'PROJECT_ID', '')
+BIGQUERY_WRITE_DISPOSITION = 'WRITE_TRUNCATE'
 
 
 def default_logger(msg):
@@ -785,9 +786,8 @@ def upload_local_data_to_big_query(dataset_id, table_id, schema, course_id, file
         dataset_id: Valid Google Big Query dataset ID.
         table_id: Valid Google Big Query table ID of the provided dataset_id.
         schema: Schema type to use upon the data.
-        project_id: Google Cloud Platform project ID.
         course_id: Valid course id of the current proccessed course.
-        file_name: Fil name of the archive that has the tracking log data.
+        file_name: File name of the archive that has the tracking log data.
     """
     bigquery_client = bigquery.Client.from_service_account_json(
         getattr(edx2bigquery_config, 'auth_key_file', ''),
@@ -829,7 +829,7 @@ def get_job_config(schema):
     job_config = bigquery.LoadJobConfig()
 
     job_config.schema = list(get_configuration_schema(schema))
-    job_config.write_disposition = 'WRITE_TRUNCATE'
+    job_config.write_disposition = BIGQUERY_WRITE_DISPOSITION
     job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
     job_config.autodetect = True
 
@@ -854,8 +854,7 @@ def get_configuration_schema(schema):
         raise Exception('Data schema was not provided. Unable to upload data to Google BigQuery.')
 
     for api_schema_field in schema:
-        schema_field = bigquery.schema.SchemaField.from_api_repr(api_schema_field)
-        yield schema_field
+        yield bigquery.schema.SchemaField.from_api_repr(api_schema_field)
 
 
 #-----------------------------------------------------------------------------
