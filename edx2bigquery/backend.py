@@ -31,6 +31,9 @@ def download_object_and_save(object_key):
     Args:
         object_key: Key name of the object.
     """
+    if not object_key:
+        return None
+
     bucket_name = getattr(edx2bigquery_config, 'AWS_BUCKET_NAME', '')
     local_file_name = object_key.split('/')[-1]
     logs_dir = getattr(edx2bigquery_config, 'TRACKING_LOGS_DIRECTORY', '')
@@ -60,7 +63,9 @@ def set_aws_environment_settings():
 
 def get_bucket_object_list(bucket_name, start_date):
     """
-    Returns the object list from the provide bucket name.
+    Finds and gets all the objects matched by the tracking log date string.
+
+    It will search in each folder of the provided TRACKING_LOG_FILE_NAME_PREFIX value.
 
     Args:
         bucket_name: Name of the bucket to the get the file object list.
@@ -72,36 +77,29 @@ def get_bucket_object_list(bucket_name, start_date):
         print('The TRACKING_LOG_FILE_NAME_PREFIX setting is required.')
         exit()
 
-    prefix_name = '{}{}'.format(
-        getattr(edx2bigquery_config, 'TRACKING_LOG_FILE_NAME_PREFIX', ''),
-        start_date,
+    all_instance_folder = aws_client.list_objects(
+        Bucket=bucket_name,
+        Delimiter='/',
+        Prefix=getattr(edx2bigquery_config, 'TRACKING_LOG_FILE_NAME_PREFIX', ''),
     )
+    folder_paginator = aws_client.get_paginator('list_objects')
 
-    paginator = aws_client.get_paginator('list_objects')
-    result = paginator.paginate(
-        Bucket=bucket_name, Delimiter='/', Prefix=getattr(edx2bigquery_config, 'TRACKING_LOG_FILE_NAME_PREFIX', ''), PaginationConfig={'MaxItems': 1}
-    )
-
-    for page in result.search('CommonPrefixes'):
-        all_objects_macthed = aws_client.list_objects(
-            Bucket=bucket_name,
-            Prefix=page['Prefix'],
+    for folder in all_instance_folder.get('CommonPrefixes', []):
+        prefix_file_name = '{}{}{}'.format(
+            folder.get('Prefix'),
+            getattr(edx2bigquery_config, 'TRACKING_LOG_FILE_NAME_PATTERN', ''),
+            start_date,
+        )
+        paginator_result = folder_paginator.paginate(
+            Bucket=bucket_name, Prefix=prefix_file_name, PaginationConfig={'MaxItems': 100}
         )
 
-        for bucket_object in all_objects_macthed['Contents']:
-            key_name = bucket_object.get('Key', None)
-            if '' in key_name:
-                print(key_name)
+        for object_file in paginator_result.search('Contents'):
+            if not object_file:
+                continue
 
-    # if not all_objects_macthed.get('Contents'):
-    #     print('No objects were found with the prefix: {}'.format(prefix_name))
-    #     exit()
-
-    # for bucket_object in all_objects_macthed['Contents']:
-    #     key_name = bucket_object.get('Key', None)
-
-    #     if key_name:
-    #         download_object_and_save(key_name)
+            download_object_and_save(object_file.get('Key', None))
 
 
-get_bucket_object_list(getattr(edx2bigquery_config, 'AWS_BUCKET_NAME', ''), '2019')
+
+get_bucket_object_list(getattr(edx2bigquery_config, 'AWS_BUCKET_NAME', ''), '20190618')
