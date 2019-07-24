@@ -9,15 +9,15 @@
 import datetime
 import getpass
 import json
-import time
 import sys
-
+import time
 from collections import OrderedDict
 
 from google.cloud import bigquery
 
 import auth
 import edx2bigquery_config
+from course_key import to_deprecated_course_id_string
 
 
 service = auth.build_bq_client(timeout=480)
@@ -50,12 +50,11 @@ def course_id2dataset(course_id, dtype=None, use_dataset_latest=False):
     BigQuery disallows certain characters in table names, e.g. "-" and "."
     Use this function to keep our mapping centralized and consistent.
     '''
-    if course_id.startswith('course-v1:'):
-        course_id = course_id.split('course-v1:',1)[1]
+    course_id = to_deprecated_course_id_string(course_id)
 
-    dataset = course_id.replace('/','__').replace('.','_')	# dataset_id is same as course_dir but with "." -> "_"
+    dataset = course_id.replace('/','_').replace('.','_')	# dataset_id is same as course_dir but with "." -> "_"
     dataset = dataset.replace('-','_') # also "." -> "_"
-    dataset = dataset.replace('+', '_') # also "+" -> "_"
+
     if dtype=='logs':
         dataset += "_logs"
     elif dtype=='pcday':
@@ -777,7 +776,7 @@ def extract_table_to_gs(dataset_id, table_id, gsfn, format=None, do_gzip=False, 
         raise Exception('BQ Error creating table')
 
 
-def upload_local_data_to_big_query(dataset_id, table_id, schema, course_id, file_name):
+def upload_local_data_to_big_query(dataset_id, table_id, schema, course_id, file_name, source_format):
     """
     Uploads local tracking logs to the provided dataset and table id from
     the provided course_id tracking log file.
@@ -788,13 +787,14 @@ def upload_local_data_to_big_query(dataset_id, table_id, schema, course_id, file
         schema: Schema type to use upon the data.
         course_id: Valid course id of the current proccessed course.
         file_name: File name of the archive that has the tracking log data.
+        source_format: Source format of the file data e.g. JSON, CSV.
     """
     bigquery_client = bigquery.Client.from_service_account_json(
         getattr(edx2bigquery_config, 'auth_key_file', ''),
     )
     dataset_ref = bigquery_client.dataset(dataset_id)
     table_ref = dataset_ref.table(table_id)
-    job_config = get_job_config(schema)
+    job_config = get_job_config(schema, source_format)
 
     with open(file_name, "rb") as source_file:
         job = bigquery_client.load_table_from_file(
@@ -809,13 +809,21 @@ def upload_local_data_to_big_query(dataset_id, table_id, schema, course_id, file
         print(
             'Job for update the file with name: {} into the table: {} failed due to: {}'.format(
                 file_name,
-                table_ref,
-                ' '.join(job_result.errors)
+                table_ref.table_id,
+                ' '.join(job_result.errors),
             )
         )
 
+    print(
+        'State job for upload {} into the table: {}: {}'.format(
+            file_name,
+            table_ref.table_id,
+            job_result.state,
+        )
+    )
 
-def get_job_config(schema):
+
+def get_job_config(schema, source_format):
     """
     Returns the BigQuery configuration options for load jobs.
 
@@ -823,15 +831,23 @@ def get_job_config(schema):
 
     Args:
         schema: Schema type to use upon the data.
+        source_format: Source format of the file data e.g. JSON, CSV.
     Returns:
         google.cloud.bigquery.job.LoadJobConfig Object.
     """
     job_config = bigquery.LoadJobConfig()
 
+    if not source_format:
+        raise Exception('JSON or CSV source_format were not provided.')
+
+    if source_format == 'JSON':
+        job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
+    elif source_format == 'CSV':
+        job_config.source_format = bigquery.SourceFormat.CSV
+        job_config.skip_leading_rows = 1
+
     job_config.schema = list(get_configuration_schema(schema))
     job_config.write_disposition = BIGQUERY_WRITE_DISPOSITION
-    job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
-    job_config.autodetect = True
 
     return job_config
 
@@ -923,6 +939,3 @@ def test_create_table():
     delete_bq_table(dataset, table)
     tables = get_list_of_table_ids(dataset)
     assert(table not in tables)
-    
-    
-

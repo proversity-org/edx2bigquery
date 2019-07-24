@@ -275,9 +275,9 @@
             "name": "module_id"
         }, 
         {
-            "type": "INTEGER", 
-            "name": "student_id"
-        }, 
+            "type": "STRING",
+            "name": "course_id"
+        },
         {
             "type": "STRING", 
             "name": "state"
@@ -287,6 +287,14 @@
             "name": "grade"
         }, 
         {
+            "type": "STRING",
+            "name": "max_grade"
+        },
+        {
+            "type": "STRING",
+            "name": "done"
+        },
+        {
             "type": "TIMESTAMP", 
             "name": "created"
         }, 
@@ -295,16 +303,8 @@
             "name": "modified"
         }, 
         {
-            "type": "STRING",
-            "name": "max_grade"
-        }, 
-        {
-            "type": "STRING", 
-            "name": "done"
-        }, 
-        {
-            "type": "STRING", 
-            "name": "course_id"
+            "type": "INTEGER",
+            "name": "student_id"
         }
     ], 
     "student_usertestgroup_users": [

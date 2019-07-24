@@ -20,27 +20,36 @@
 # Uploads SQL files to GS if requested (use --upload-to-gs flag)
 #
 
-import os
-import sys
+import datetime
+import glob
+import gzip
 #import auth
 import json
-import time
-import glob
+import os
 import re
-import datetime
+import sys
+import time
+
 import pytz
-import gzip
-import bqutil
-import gsutil
 import unicodecsv as csv
 from path import Path as path
-from gsutil import get_gs_file_list
 
-#-----------------------------------------------------------------------------
+import bqutil
+import edx2bigquery_config
+import gsutil
+from bqutil import upload_local_data_to_big_query
+from course_key import to_deprecated_course_id_string
+from gsutil import get_gs_file_list
+from local_util import get_schema_from_file
+
+
+DEFAULT_SQL_FILE_EXTENSION = '.csv.gz'
+DEFAULT_CSV_SOURCE_FORMAT_NAME = 'CSV'
+
 
 def find_course_sql_dir(course_id, basedir, datedir=None, use_dataset_latest=False, verbose=True):
     basedir = path(basedir or '')
-
+    course_id = to_deprecated_course_id_string(course_id)
     course_dir = course_id.replace('/','__')
 
     # find the directory modulo date, first
@@ -389,4 +398,61 @@ def load_sql_for_course(course_id, gsbucket="gs://x-data", basedir="X-Year-2-dat
         print "--> Not loading studentmodule: file %s not found" % fn_sm
 
 
-        
+def load_local_sql_files_to_bigquery(course_id, verbose, base_dir, date_dir):
+    """
+    Loads the MySQL files from edx-analytics-exporter into Google Big Query.
+
+    Run the waldofy command before attempting to upload MySQL data into Google Big Query.
+
+    Args:
+        course_id: course_id string.
+        verbose: Whether or not the function logging should be verbose.
+    """
+    STUDENTMODULE_TABLE_NAME = 'studentmodule'
+    USER_INFO_COMBO_TABLE_NAME = 'user_info_combo'
+
+    dataset_name = bqutil.course_id2dataset(course_id)
+    sql_scheme_file_names = getattr(edx2bigquery_config, 'SQL_SCHEME_FILE_NAMES', None)
+    sql_files_abs_path = os.path.abspath('{}'.format(
+        find_course_sql_dir(course_id, base_dir, date_dir))
+    )
+
+    if not sql_scheme_file_names:
+        print('Missing SQL_SCHEME_FILE_NAMES setting, unable to load scheme files.')
+        exit()
+
+    for table_name, scheme_data in sql_scheme_file_names.items():
+        dict_schema = get_schema_from_file(scheme_data.get('scheme_file_name', ''))
+
+        if table_name == STUDENTMODULE_TABLE_NAME:
+            scheme = dict_schema.get('courseware_studentmodule', {})
+        elif table_name == USER_INFO_COMBO_TABLE_NAME:
+            scheme = dict_schema.get('user_info_combo', {})
+
+        if not scheme:
+            print('Unable to load Google Big Query scheme for: {}'.format(table_name))
+            continue
+
+        bqutil.create_dataset_if_nonexistent(dataset_name)
+
+        file_name = '{}/{}{}'.format(
+            sql_files_abs_path,
+            table_name,
+            DEFAULT_SQL_FILE_EXTENSION,
+        )
+
+        if not os.path.isfile(file_name):
+            print('File does not exists: {}, unable to load SQL file to Google Big Query.'.format(file_name))
+            continue
+
+        if verbose:
+            print('Uploading: {} to the table: {}'.format(file_name, table_name))
+
+        bqutil.upload_local_data_to_big_query(
+            dataset_id=dataset_name,
+            table_id=table_name,
+            schema=scheme,
+            course_id=course_id,
+            file_name=file_name,
+            source_format=DEFAULT_CSV_SOURCE_FORMAT_NAME,
+        )

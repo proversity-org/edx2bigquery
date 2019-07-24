@@ -55,22 +55,25 @@
 #
 #    python make_person_course.py 6.SFMx
 
-import os
-import sys
-import unicodecsv as csv
+import copy
+import datetime
 import gzip
 import json
+import os
+import sys
+from collections import OrderedDict, defaultdict
+
+import unicodecsv as csv
+from path import Path as path
+
 import bqutil
 import gsutil
-import datetime
-import copy
-from path import Path as path
-from collections import OrderedDict, defaultdict
-from check_schema_tracking_log import schema2dict, check_schema
+from check_schema_tracking_log import check_schema, schema2dict
 from load_course_sql import find_course_sql_dir, get_course_sql_dirdate
 
-csv.field_size_limit(13107200)
 
+csv.field_size_limit(13107200)
+PERSON_COURSE_FILE_NAME = 'person_course.json.gz'
 #-----------------------------------------------------------------------------
 
 class PersonCourse(object):
@@ -924,7 +927,7 @@ class PersonCourse(object):
                 self.log("Error writing CSV output row=%s" % pcent)
                 raise
         
-    def upload_to_bigquery(self):
+    def upload_to_bigquery(self, use_local_files):
         '''
         upload person_course table to bigquery, via google cloud storage
         '''
@@ -938,11 +941,22 @@ class PersonCourse(object):
             os.system(cmd)
             return gsfnp
 
-        gsfnp = upload_to_gs('person_course.json.gz')
-        upload_to_gs('person_course.csv.gz')
-
         tableid = self.tableid
-        bqutil.load_data_to_table(self.dataset, tableid, gsfnp, self.the_schema, wait=True, verbose=False)
+
+        if not use_local_files:
+            gsfnp = upload_to_gs(PERSON_COURSE_FILE_NAME)
+
+            upload_to_gs('person_course.csv.gz')
+            bqutil.load_data_to_table(self.dataset, tableid, gsfnp, self.the_schema, wait=True, verbose=False)
+        else:
+            bqutil.upload_local_data_to_big_query(
+                self.dataset,
+                tableid,
+                self.the_schema,
+                self.course_id,
+                '{}/{}'.format(self.cdir, PERSON_COURSE_FILE_NAME),
+                'JSON',
+            )
 
         description = '\n'.join(self.logmsg)
         description += "Person course for %s with nchapters=%s, start=%s, end=%s\n" % (self.course_id,
@@ -1588,7 +1602,7 @@ class PersonCourse(object):
     def load_cwsm(self):
         self.cwsm = self.load_csv('studentmodule.csv', 'student_id', fields=['module_id', 'module_type'], keymap=int)
 
-    def make_all(self):
+    def make_all(self, use_local_files):
         steps = [
             self.compute_first_phase,
             self.compute_second_phase,
@@ -1612,7 +1626,7 @@ class PersonCourse(object):
                 self.nskip -= 1
 
         self.output_table()
-        self.upload_to_bigquery()
+        self.upload_to_bigquery(use_local_files=use_local_files)
 
     def nightly_update(self):
         '''
@@ -1643,19 +1657,24 @@ class PersonCourse(object):
         
 #-----------------------------------------------------------------------------
 
-def make_person_course(course_id, basedir="X-Year-2-data-sql", datedir="2013-09-21", options='', 
-                       gsbucket="gs://x-data",
-                       start="2012-09-05",
-                       end="2013-09-21",
-                       force_recompute=False,
-                       nskip=0,
-                       skip_geoip=False,
-                       use_dataset_latest=False,
-                       skip_if_table_exists=False,
-                       just_do_nightly=False,
-                       just_do_geoip=False,
-                       use_latest_sql_dir=False,
-                       ):
+def make_person_course(
+        course_id,
+        basedir="X-Year-2-data-sql",
+        datedir="2013-09-21",
+        options='', 
+        gsbucket="gs://x-data",
+        start="2012-09-05",
+        end="2013-09-21",
+        force_recompute=False,
+        nskip=0,
+        skip_geoip=False,
+        use_dataset_latest=False,
+        skip_if_table_exists=False,
+        just_do_nightly=False,
+        just_do_geoip=False,
+        use_latest_sql_dir=False,
+        use_local_files=False,
+    ):
     '''
     make one person course dataset
     '''
@@ -1691,7 +1710,7 @@ def make_person_course(course_id, basedir="X-Year-2-data-sql", datedir="2013-09-
     elif just_do_nightly:
         pc.nightly_update()
     else:
-        pc.make_all()
+        pc.make_all(use_local_files=use_local_files)
     print "Done processing person course for %s (end %s)" % (course_id, datetime.datetime.now())
     print "-"*77
         
@@ -1709,4 +1728,3 @@ def make_pc3(course_id, cdir):
     pc.output_table()
     pc.upload_to_bigquery()
     return pc
-

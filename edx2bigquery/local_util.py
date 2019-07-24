@@ -1,6 +1,7 @@
 """
 This file contains util functions to work with local tracking log files.
 """
+import json
 import os
 
 import edx2bigquery_config
@@ -41,3 +42,22 @@ def get_tracking_log_file_list(course_id):
         for file_name in file_list:
             abs_path = '{}/{}'.format(abs_path_to_folder, file_name)
             yield abs_path
+
+
+def get_schema_from_file(scheme_name):
+    """
+    Returns the provided schema from the edX2BigQuery schemas folder.
+
+    Args:
+        scheme_name: File name of the desired JSON scheme.
+    Returns:
+        Dict containing the tracking log schema.
+    """
+    if not scheme_name:
+        raise Exception('scheme_name was not provided.')
+
+    my_path = os.path.dirname(os.path.realpath(__file__))
+
+    return json.loads(
+        open('{}/schemas/{}.json'.format(my_path, scheme_name)).read()
+    )

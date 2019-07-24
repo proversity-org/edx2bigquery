@@ -29,7 +29,7 @@ def already_exists(course_id, use_dataset_latest=False):
         return False
     return True
 
-def do_save(cid, caset_in, xbundle, datadir, log_msg, use_dataset_latest=False):
+def do_save(cid, caset_in, xbundle, datadir, log_msg, use_local_files, use_dataset_latest=False):
     '''
     Save course axis data to bigquery
     
@@ -78,15 +78,18 @@ def do_save(cid, caset_in, xbundle, datadir, log_msg, use_dataset_latest=False):
 
     # upload axis.json file and course xbundle
     gsdir = path(gsutil.gs_path_from_course_id(cid, use_dataset_latest=use_dataset_latest))
-    if 1:
-        gsutil.upload_file_to_gs(cafn, gsdir, options="-z json", verbose=False)
-        gsutil.upload_file_to_gs(xbfn, gsdir, options='-z xml', verbose=False)
 
     # import into BigQuery
     dataset = bqutil.course_id2dataset(cid, use_dataset_latest=use_dataset_latest)
     bqutil.create_dataset_if_nonexistent(dataset)	# create dataset if not already existent
     table = "course_axis"
-    bqutil.load_data_to_table(dataset, table, gsdir / (cafn.basename()), the_schema)
+
+    if not use_local_files:
+        gsutil.upload_file_to_gs(cafn, gsdir, options="-z json", verbose=False)
+        gsutil.upload_file_to_gs(xbfn, gsdir, options='-z xml', verbose=False)
+        bqutil.load_data_to_table(dataset, table, gsdir / (cafn.basename()), the_schema)
+    else:
+        bqutil.upload_local_data_to_big_query(dataset, table, the_schema, cid, cafn, 'JSON')
 
     msg = "="*100 + '\n'
     msg += "Course axis for %s\n" % (cid)

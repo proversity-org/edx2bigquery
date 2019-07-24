@@ -54,3 +54,7 @@ coverage.xml
 # Sphinx documentation
 docs/_build/
 
+sql_result
+sql-data
+sql-zip-data
+venv
