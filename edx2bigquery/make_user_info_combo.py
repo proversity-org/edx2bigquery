@@ -47,15 +47,18 @@
 # 
 # Each record's schema is checked for validity afterwards.
 
-import os, sys
 import csv
 import gzip
 import json
-import gsutil
+import os
+import sys
+from collections import defaultdict
 
 from path import Path as path
-from collections import defaultdict
-from check_schema_tracking_log import schema2dict, check_schema
+
+import gsutil
+from check_schema_tracking_log import check_schema, schema2dict
+from course_key import to_deprecated_course_id_string
 from load_course_sql import find_course_sql_dir
 
 #csv.field_size_limit(sys.maxsize)
@@ -63,6 +66,7 @@ csv.field_size_limit(13107200)
 
 def process_file(course_id, basedir=None, datedir=None, use_dataset_latest=False):
 
+    course_id = to_deprecated_course_id_string(course_id)
     basedir = path(basedir or '')
     course_dir = course_id.replace('/','__')
     lfp = find_course_sql_dir(course_id, basedir, datedir, use_dataset_latest=use_dataset_latest)

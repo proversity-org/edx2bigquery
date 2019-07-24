@@ -537,7 +537,7 @@ def save_data_to_mongo(cid, cdat, caset, xbundle=None):
 
 # <codecell>
 
-def save_data_to_bigquery(cid, cdat, caset, xbundle=None, datadir=None, log_msg=None,
+def save_data_to_bigquery(cid, cdat, caset, use_local_files, xbundle=None, datadir=None, log_msg=None,
                           use_dataset_latest=False):
     '''
     Save course axis data to bigquery
@@ -548,7 +548,7 @@ def save_data_to_bigquery(cid, cdat, caset, xbundle=None, datadir=None, log_msg=
     xbundle = XML bundle of course (everything except static files)
     '''
     import axis2bigquery
-    axis2bigquery.do_save(cid, caset, xbundle, datadir, log_msg, use_dataset_latest=use_dataset_latest)
+    axis2bigquery.do_save(cid, caset, xbundle, datadir, log_msg, use_local_files=use_local_files, use_dataset_latest=use_dataset_latest)
 
 # <codecell>
 
@@ -583,10 +583,12 @@ def fix_duplicate_url_name_vertical(axis):
 
 #-----------------------------------------------------------------------------
 
-def process_course(dir, use_dataset_latest=False, force_course_id=None):
+def process_course(dir, use_local_files, use_dataset_latest=False, force_course_id=None):
     '''
     if force_course_id is specified, then that value is used as the course_id
     '''
+    DEFAULT_BUNDLE_NAME = 'bundle'
+
     ret = make_axis(dir)
 
     # save data as csv and txt: loop through each course (multiple policies can exist withing a given course dir)
@@ -627,7 +629,16 @@ def process_course(dir, use_dataset_latest=False, force_course_id=None):
         
         # optional save to bigquery
         if DO_SAVE_TO_BIGQUERY:
-            save_data_to_bigquery(cid, cdat, caset, ret[default_cid]['bundle'], DATADIR, log_msg, use_dataset_latest=use_dataset_latest)
+            save_data_to_bigquery(
+                cid,
+                cdat,
+                caset,
+                use_local_files,
+                ret[default_cid][DEFAULT_BUNDLE_NAME],
+                DATADIR,
+                log_msg,
+                use_dataset_latest=use_dataset_latest,
+            )
 
         # print out to text file
         afp = codecs.open('%s/axis_%s.txt' % (DATADIR, cid.replace('/','__')),'w', encoding='utf8')
@@ -659,7 +670,7 @@ def process_course(dir, use_dataset_latest=False, force_course_id=None):
 
 # <codecell>
 
-def process_xml_tar_gz_file(fndir, use_dataset_latest=False, force_course_id=None):
+def process_xml_tar_gz_file(fndir, use_local_files, use_dataset_latest=False, force_course_id=None):
     '''
     convert *.xml.tar.gz to course axis
     This could be improved to use the python tar & gzip libraries.
@@ -671,7 +682,7 @@ def process_xml_tar_gz_file(fndir, use_dataset_latest=False, force_course_id=Non
     os.system(cmd)
     newfn = glob.glob('%s/*' % tdir)[0]
     print "Using %s as the course xml directory" % newfn
-    process_course(newfn, use_dataset_latest=use_dataset_latest, force_course_id=force_course_id)
+    process_course(newfn, use_local_files=use_local_files, use_dataset_latest=use_dataset_latest, force_course_id=force_course_id)
     print "removing temporary files %s" % tdir
     os.system('rm -rf %s' % tdir)
 

@@ -3,11 +3,14 @@
 import os
 import sys
 import traceback
+
+import axis2bigquery
+import edx2bigquery_config
 import edx2course_axis
 import load_course_sql
-import axis2bigquery
 
-def process_course(course_id, basedir, datedir, use_dataset_latest, verbose=False, pin_date=None, stop_on_error=True):
+
+def process_course(course_id, basedir, datedir, use_dataset_latest, use_local_files, verbose=False, pin_date=None, stop_on_error=True,):
     if pin_date:
         datedir = pin_date
     sdir = load_course_sql.find_course_sql_dir(course_id, 
@@ -18,11 +21,7 @@ def process_course(course_id, basedir, datedir, use_dataset_latest, verbose=Fals
     edx2course_axis.DATADIR = sdir
     edx2course_axis.VERBOSE_WARNINGS = verbose
 
-    fn_to_try = ['course.xml.tar.gz',
-                'course-prod-analytics.xml.tar.gz',
-                'course-prod-edge-analytics.xml.tar.gz',
-                'course-prod-edx-replica.xml.tar.gz',
-            ]
+    fn_to_try = getattr(edx2bigquery_config, 'COURSE_FILES_PREFIX_NAMES', [])
 
     for fntt in fn_to_try:
         fn = sdir / fntt
@@ -37,9 +36,12 @@ def process_course(course_id, basedir, datedir, use_dataset_latest, verbose=Fals
     # TODO: only create new axis if the table is missing, or the course axis is not already created
 
     try:
-        edx2course_axis.process_xml_tar_gz_file(fn,
-                                                use_dataset_latest=use_dataset_latest,
-                                                force_course_id=course_id)
+        edx2course_axis.process_xml_tar_gz_file(
+            fn,
+            use_local_files=use_local_files,
+            use_dataset_latest=use_dataset_latest,
+            force_course_id=course_id,
+        )
     except Exception as err:
         print err
         traceback.print_exc()

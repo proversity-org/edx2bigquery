@@ -31,6 +31,10 @@ import edx2bigquery_config
 import gsutil
 import local_util
 
+
+DEFAULT_JSON_SOURCE_FORMAT_NAME = 'JSON'
+
+
 #-----------------------------------------------------------------------------
 
 def load_all_daily_logs_for_course(course_id, gsbucket="gs://x-data", verbose=True, wait=False,
@@ -155,14 +159,16 @@ def load_local_logs_to_biqquery(course_id, start_date, end_date, verbose):
                 file_date.strftime(getattr(edx2bigquery_config, 'TRACKING_LOG_DATE_FORMAT', '%Y-%m-%d'))
             )
 
-            if verbose: logging('Uploading: {} to the table: {}'.format(file_name, table_name))
+            if verbose:
+                logging('Uploading: {} to the table: {}'.format(file_name, table_name))
 
-            upload_local_data = bqutil.upload_local_data_to_big_query(
+            bqutil.upload_local_data_to_big_query(
                 dataset_id=dataset_name,
                 table_id=table_name,
                 schema=schema,
                 course_id=course_id,
                 file_name=file_name,
+                source_format=DEFAULT_JSON_SOURCE_FORMAT_NAME,
             )
         elif verbose:
             logging(

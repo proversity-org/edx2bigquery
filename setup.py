@@ -44,6 +44,8 @@ setup(
         'oauth2client',
         'google-cloud-bigquery',
         'edx-opaque-keys',
+        'pandas',
+        'Unidecode',
     ],
     dependency_links = [],
     package_dir={'edx2bigquery': 'edx2bigquery'},

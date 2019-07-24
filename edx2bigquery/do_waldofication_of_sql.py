@@ -1,8 +1,13 @@
-import os, sys, glob
-import re
+import glob
 import gzip
+import os
+import re
+import sys
 
 from path import Path as path
+
+from course_key import to_deprecated_course_id_string, from_deprecated_course_id_string
+
 
 #-----------------------------------------------------------------------------
 
@@ -32,7 +37,9 @@ def guess_course_id(name, known_course_ids):
     nlen = 0
     match = None
     for course_id in known_course_ids:
+        course_id = to_deprecated_course_id_string(course_id)
         cstr = course_id.replace('/','-')
+
         if name.startswith(cstr):
             # print course
             if len(course_id) > nlen:
@@ -101,16 +108,18 @@ def fix_course_id(short_cid, date):
 
 def getCourseDir(cid, dtstr, basedir='', known_course_ids=None, is_edge=False):
     cdir = path(basedir)
+    course_id = from_deprecated_course_id_string(cid)
+
     if is_edge:
         cdir = cdir / "EDGE"
         if not cdir.exists():
             os.mkdir(cdir)
     else:
-        if not cid in known_course_ids or []:
+        if not course_id in known_course_ids:
             cdir = cdir / "UNKNOWN"
             if not cdir.exists():
                 os.mkdir(cdir)
-        
+
     cdir = cdir / (cid.replace('/','-'))
     if not cdir.exists():
         os.mkdir(cdir)
@@ -248,4 +257,3 @@ def process_directory(dirname, courses, basedir):
     for fn in files:
         processFile(path(fn), dtstr, basedir, courses)
         sys.stdout.flush()
-

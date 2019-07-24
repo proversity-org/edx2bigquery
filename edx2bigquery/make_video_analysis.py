@@ -56,21 +56,26 @@ SCHEMA_VIDEO_AXIS_NAME = 'video_axis'
 DATE_DEFAULT_START = '20120101'
 DATE_DEFAULT_END = datetime.datetime.today().strftime("%Y%m%d")
 DATE_DEFAULT_END_NEW = datetime.datetime.today().strftime("%Y-%m-%d")
+DEFAULT_JSON_SOURCE_FORMAT_NAME = 'JSON'
 
 #-----------------------------------------------------------------------------
 # METHODS
 #-----------------------------------------------------------------------------
 
-def analyze_videos(course_id, api_key=None, basedir=None, 
-                   datedir=None, force_recompute=False,
-                   use_dataset_latest=False,
-                   use_latest_sql_dir=False,
-               ):
+def analyze_videos(
+    course_id,
+    use_local_files,
+    api_key=None,
+    basedir=None,
+    datedir=None, force_recompute=False,
+    use_dataset_latest=False,
+    use_latest_sql_dir=False,
+):
 
-    make_video_stats(course_id, api_key, basedir, datedir, force_recompute, use_dataset_latest, use_latest_sql_dir)
+    make_video_stats(course_id, api_key, basedir, datedir, force_recompute, use_dataset_latest, use_latest_sql_dir, use_local_files)
     pass # Add new video stat methods here
 
-def make_video_stats(course_id, api_key, basedir, datedir, force_recompute, use_dataset_latest, use_latest_sql_dir):
+def make_video_stats(course_id, api_key, basedir, datedir, force_recompute, use_dataset_latest, use_latest_sql_dir, use_local_files):
     '''
     Create Video stats for Videos Viewed and Videos Watched.
     First create a video axis, based on course axis. Then use tracking logs to count up videos viewed and videos watched
@@ -126,11 +131,22 @@ def make_video_stats(course_id, api_key, basedir, datedir, force_recompute, use_
         fileoutput = lfp / FILENAME_VIDEO_AXIS
         getYoutubeDurations( dataset=dataset, bq_table_input=va_bqdata, api_key=api_key, outputfilename=fileoutput, schema=the_dict_schema, force_recompute=force_recompute )
 
-        # upload and import video axis
-        gsfn = gsutil.gs_path_from_course_id(course_id, use_dataset_latest=use_dataset_latest) / FILENAME_VIDEO_AXIS
-        gsutil.upload_file_to_gs(fileoutput, gsfn)
         table = TABLE_VIDEO_AXIS
-        bqutil.load_data_to_table(dataset, table, gsfn, the_schema, wait=True)
+
+        if not use_local_files:
+            # upload and import video axis
+            gsfn = gsutil.gs_path_from_course_id(course_id, use_dataset_latest=use_dataset_latest) / FILENAME_VIDEO_AXIS
+            gsutil.upload_file_to_gs(fileoutput, gsfn)
+            bqutil.load_data_to_table(dataset, table, gsfn, the_schema, wait=True)
+        else:
+            bqutil.upload_local_data_to_big_query(
+                dataset,
+                table,
+                the_schema,
+                course_id,
+                fileoutput,
+                DEFAULT_JSON_SOURCE_FORMAT_NAME,
+            )
 
     else:
         print "[analyze videos] %s.%s already exists (and force recompute not specified). Skipping step to generate %s using latest course axis" % ( dataset, TABLE_VIDEO_AXIS, TABLE_VIDEO_AXIS )
