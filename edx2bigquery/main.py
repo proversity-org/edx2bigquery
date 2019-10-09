@@ -438,6 +438,9 @@ def time_on_asset(param, course_id, optargs=None, skip_totals=False, just_do_tot
 
     import make_time_on_asset
 
+    if not skip_totals:
+        skip_totals = param.skip_total_assets_table
+
     try:
         make_time_on_asset.process_course_time_on_asset(course_id,
                                                         force_recompute=param.force_recompute,
@@ -1872,6 +1875,7 @@ check_for_duplicates        : check list of courses for duplicates
     parser.add_argument('courses', nargs = '*', help = 'courses or course directories, depending on the command')
     parser.add_argument('--use-local-tracking-files', help='Use the local tracking log files to upload into BigQuery instead of Google Cloud Storage files.', action="store_true")
     parser.add_argument('--split-multiple-files', help='Split multiples files for the same date.', action="store_true")
+    parser.add_argument("--skip-total-assets-table", help="For time_asset command, if provided, the command will only create the table called: time_on_asset_daily", action="store_true")
 
     args = parser.parse_args()
     if args.verbose:
@@ -1903,6 +1907,7 @@ check_for_duplicates        : check list of courses for duplicates
     param.subsection = args.subsection
     param.use_local_files = args.use_local_tracking_files
     param.split_multiple_files = args.split_multiple_files
+    param.skip_total_assets_table = args.skip_total_assets_table
 
     # default end date for person_course
     try:

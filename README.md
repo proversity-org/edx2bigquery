@@ -210,6 +210,7 @@ positional arguments:
                         
                         time_asset <course_id> ...   : Update time_on_asset_daily and time_on_asset_totals tables of data on time on asset (ie module_id,
                                                        aka url_name), based on daily tracking logs, for specified course.
+                                                       This command accepts --skip-total-assets-table, if provided, the command will only create the table called: time_on_asset_daily.
                         
                         item_tables <course_id> ... : Make course_item and person_item tables, used for IRT analyses.
                         
