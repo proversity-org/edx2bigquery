@@ -107,6 +107,8 @@ def process_course_time_on_asset(course_id, force_recompute=False, use_dataset_l
           """
 
     table = 'time_on_asset_daily'
+    dataset_name = bqutil.course_id2dataset(course_id)
+    bqutil.create_dataset_if_nonexistent(dataset_name)
 
     def gdf(row):
         return datetime.datetime.strptime(row['date'], '%Y-%m-%d')
