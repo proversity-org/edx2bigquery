@@ -586,7 +586,7 @@ def add_description_to_table(dataset_id, table_id, description, append=False, pr
 
     if append:
         table = tables.get(**table_ref).execute()
-        old_description = table['description']
+        old_description = table.get('description', '')
         description = old_description + '\n' + description
 
     if len(description) > 16383:
