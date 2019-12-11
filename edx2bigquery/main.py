@@ -97,7 +97,7 @@ def get_course_ids_from_subset_missing_table(args):
 
 def get_course_ids_no_check(args):
     print('ARGS: ----------------------------------------------------------------')
-    # print(args)
+    print(args)
     print(type(args))
     if type(args)==str:		# special case: a single course, already specified
         return [ args ]
