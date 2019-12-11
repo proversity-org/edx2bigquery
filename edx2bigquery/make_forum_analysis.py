@@ -499,6 +499,7 @@ def CreateForumEvents( course_id, force_recompute=False, use_dataset_latest=Fals
               """
 
     try:
+        bqutil.create_dataset_if_nonexistent(dataset)
         tinfo = bqutil.get_bq_table_info(dataset, table )
         assert tinfo is not None, "[make_forum_analysis] Creating %s.%s table for %s" % (dataset, table, course_id)
 
