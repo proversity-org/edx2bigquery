@@ -55,6 +55,7 @@ order by user_id, time
     """
 
     try:
+        bqutil.create_dataset_if_nonexistent(dataset)
         tinfo = bqutil.get_bq_table_info(dataset, table )
         assert tinfo is not None, "[make_problem_events] Creating %s.%s table for %s" % (dataset, table, course_id)
 

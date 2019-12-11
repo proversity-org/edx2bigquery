@@ -31,6 +31,7 @@ jobs = service.jobs()
 PROJECT_NAMES = {}				# used to cache project names, key=project_id
 DEFAULT_PROJECT_ID = getattr(edx2bigquery_config, 'PROJECT_ID', '')
 BIGQUERY_WRITE_DISPOSITION = 'WRITE_TRUNCATE'
+BIGQUERY_MAX_BAD_RECORDS = 50
 
 
 def default_logger(msg):
@@ -848,6 +849,8 @@ def get_job_config(schema, source_format):
 
     job_config.schema = list(get_configuration_schema(schema))
     job_config.write_disposition = BIGQUERY_WRITE_DISPOSITION
+    # 50 is an arbitrary number.
+    job_config.max_bad_records = BIGQUERY_MAX_BAD_RECORDS
 
     return job_config
 
