@@ -96,7 +96,7 @@ def get_course_ids_from_subset_missing_table(args):
     return courses
 
 def get_course_ids_no_check(args):
-    if type(args)==str:		# special case: a single course, already specified
+    if type(args)==str or type(args)==unicode:		# special case: a single course, already specified
         return [ args ]
     if type(args)==list:
         return args
@@ -879,10 +879,6 @@ def axis2bq(param, courses, args, stop_on_error=True):
         pass
     if not course_axis_pin_dates:
         course_axis_pin_dates = {}
-
-    print('ARGS: ----------------------------------------------------------------')
-    print(args)
-    print(type(args))
 
     for course_id in get_course_ids(courses):
         if args.skip_if_exists and make_course_axis.axis2bigquery.already_exists(course_id, use_dataset_latest=param.use_dataset_latest):
