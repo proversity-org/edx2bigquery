@@ -199,6 +199,10 @@
                         {
                             "type": "STRING", 
                             "name": "input_state"
+                        },
+                        {
+                            "type": "INTEGER",
+                            "name": "attempts"
                         }
                     ], 
                     "type": "RECORD", 
