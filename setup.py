@@ -46,6 +46,7 @@ setup(
         'pandas==0.24.2',
         'Unidecode==1.1.1',
         'edx-ccx-keys==0.2.2',
+        'rsa<4.1',
     ],
     dependency_links = [],
     package_dir={'edx2bigquery': 'edx2bigquery'},
